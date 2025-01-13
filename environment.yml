@@ -1,0 +1,11 @@
+name: geo
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.6
+  - geopandas=1.0.1
+  - libpysal=4.12.1
+  - esda=2.6.0
+  - splot=1.1.7
+  - contextily=1.6.2
+  - jupyter

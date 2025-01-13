@@ -1,53 +1,36 @@
-# Article Format Template (AFT)
-
-<!-- REMOVE THIS IN YOUR FORMAT TEMPLATE -->
-> Template for creating a new journal article format for Quarto. 
->
-> This repository is a [Github Repository Template](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template) that you should use as a starter to create a new extension format. Click on the "Use this template" button at the top !
->
-> See information about how-to use this repo template inside the template file or its rendered version at <https://quarto-journals.github.io/article-format-template/>
-
-<!-- ALL THE BELOW SHOULD BE IN YOUR README -->
+# README
 
 This is a Quarto template that assists you in creating a manuscript for Article Format Template journals. You can learn more about ...
 
-## Creating a New Article
 
-You can use this as a template to create an article for an AFT journal. To do this, use the following command:
+## Prepare the computational environment
 
-```bash
-quarto use template quarto-journals/article-format-template
-```
-
-This will install the extension and create an example qmd file and bibiography that you can use as a starting place for your article.
-
-## Installation For Existing Document
-
-You may also use this format with an existing Quarto project or document. From the quarto project or document directory, run the following command to install this format:
+Use the terminal to create a conda environment for executing the computional notebook (Quarto file):
 
 ```bash
-quarto add quarto-journals/article-format-template
+conda env create -f environment.yml
 ```
 
-## Usage
+A conda environment named `geo` should now be created. The next step is to activate this environment:
 
-To use the format, you can use the format names `aft-pdf` and `aft-html`. For example:
+```bash
+conda activate geo
+```
+
+You may want to deactivate this environment when you are done with this notebook:
+
+```bash
+conda deactivate
+```
+
+## Data preparation
+
+The paper uses publicly accessible data sets. A Jupyter Notebook named "0_DataCollection.ipynb" was prepared to query the publicly accessible data and conduct necessary data processing to prepare the data used in the spatial autocorrelation analysis. More details about the data source and format are given in the Data section of the paper.
+
+## Quarto file rendering
+
+Render the Quarto file:
 
 ```bash
 quarto render article.qmd --to aft-pdf
 ```
-
-or in your document yaml
-
-```yaml
-format:
-  pdf: default
-  aft-pdf:
-    keep-tex: true    
-```
-
-You can view a preview of the rendered template at <https://quarto-journals.github.io/article-format-template/>.
-
-## Format Options
-
-This format does not have specific format option. Include documentation of such option otherwise. See <https://github.com/quarto-journals/elsevier#format-options> for an example.

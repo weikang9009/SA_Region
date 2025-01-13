@@ -1,0 +1,613 @@
+---
+title: "Spatial Autocorrelation"
+format:
+  aft-pdf:
+    keep-tex: true  
+  aft-html: default
+author:
+  - name: Wei Kang
+    affiliations:
+      - name: University of California Riverside
+        department: School of Public Policy
+        address: 900 University Ave
+        city: Riverside
+        country: US
+        postal-code: 92507
+      - REGION
+    orcid: 0000-0002-1073-7781
+    email: wei.kang@ucr.edu
+    url: https://weikang9009.github.io/
+abstract: |
+    Spatial autocorrelation is a key concept in quantitative spatial analysis that measures the degree of similarity or dissimilarity between spatially distributed observations. This paper introduces the concept and measurement of global and local spatial autocorrelation. 
+    An open-source Python workflow is provided to demonstrate how to measure, visualize, and interpret global and local Moran’s I statistics—the most widely used method for spatial autocorrelation—by analyzing the spatial patterns of neighborhood housing affordability in the City of Riverside, California. 
+    The workflow includes guidance and code to address variance instability in proportion variables and the multiple testing issue in local statistics. Additionally, extensions and innovations to univariate spatial autocorrelation, such as multivariate and uncertainty-aware frameworks, are discussed.
+    
+keywords: [Spatial Autocorrelation, Spatial Effects, PySAL, Open Source]
+reference-section-title: References
+bibliography: bibliography.bib  
+jupyter: python3
+---
+
+# Introduction {#sec-intro}
+
+<!-- This section should set the context and aims; and provide an overview of the notebook. -->
+
+Spatial autocorrelation is a fundamental concept in quantitative spatial analysis, providing a framework to measure the degree of similarity or dissimilarity between spatially distributed observations. This concept is rooted in Tobler’s First Law of Geography, which states: “Everything is related to everything else, but near things are more related than distant things” [@Tobler:1970vs]. Understanding spatial autocorrelation is critical for examining spatial processes, detecting spatial patterns, and identifying clusters or outliers within geographic data [@Anselin:2016].
+
+Spatial autocorrelation can arise for a variety of reasons, including underlying spatial processes such as diffusion, neighborhood effects, or spatial spillovers. For example, in housing studies, affordability patterns may cluster due to shared socioeconomic conditions, policy interventions, or spatially dependent housing markets. Additionally, spatial autocorrelation may be induced by data collection or processing.
+Specifically, when
+the unit of observation does not match the unit of analysis (i.g., mismatched boundaries or the more general more general modifiable areal unit problem (MANP) [@manley2021scale]), spatial dependencies can arise. This issue may stem from different definitions of spatial boundaries (e.g., census geographies not aligning with functional regions) or from measurement errors (e.g., inaccuracies during map digitization in GIS). In such cases, the spatial structure of the data may unintentionally introduce spatial autocorrelation.
+
+The presence of spatial autocorrelation has important implications, as it violates the assumption of independence commonly used in classical statistical models. Ignoring spatial dependence may lead to biased estimates, inefficient models, or incorrect statistical inferences. Recognizing and quantifying spatial autocorrelation, therefore, is essential for accurate analysis, policy design, and decision-making.
+
+While the concept of spatial autocorrelation and its measurements
+has been extensively discussed in many textbooks and journal 
+articles [@OSullivan:2010; @de2007geospatial; @bivand2013applied; @rey2023geographic], 
+this paper adds to the field by providing a practical and interactive example of its implementation. 
+Using open-source Python packages, this notebook explores the spatial distribution of neighborhood 
+housing affordability in the City of Riverside of Inlanda Southern California.
+The analysis applies both global Moran’s I to measure overall spatial autocorrelation and 
+local Moran’s I to identify spatial clusters and outliers, offering a reproducible workflow 
+for spatial autocorrelation analysis.
+
+This notebook is organized into several sections. It begins with an introduction to the computational environment and data, outlining the tools and datasets used for analysis. The data section details the sources and preprocessing steps necessary for the analysis. The next section introduces the concept of spatial autocorrelation and provides a basic conceptual understanding. This is followed by a demonstration of spatial autocorrelation analysis applied to the housing affordability dataset, featuring visualizations and statistical insights. The notebook concludes with a summary of recent developments in spatial autocorrelation analysis.
+
+
+# Computational environment {#sec-ce}
+
+A wide array of specialized sopen source oftware are available
+for carrying out spatial autocorrelation analysis, including
+`spdep` (R) [@Pebesma2023], `esda`/`pysal` (Python) [@pysal2007], 
+and `rgeoda` (R) and `pygeoda` (python) which
+are based on `libgeoda` (C++), the core of the widely-used Graphic User Interface (GUI)-based
+software `GeoDa` [@Anselin20221]. 
+The choice would be much of a personal preference as they are all open source, 
+easy to be integrated into a computational workflow, 
+and producing similar output with only minor differences [@Bivand2022].
+
+In this computational notebook, I will work in a Python 3 environment
+and rely on Python Spatial Analysis Library (PySAL), 
+a mainstay open-source Python ecosystem for spatial data science [@Kang:2020c],
+to demonstrate spatial autocorrelation analysis.
+Within the ecosystem, `pysal` is a meta package pulling together about 20
+subpackages in the ecosystem capable of conducting a comprehensive variety of spatial analyses,
+including exploratory spatial data analysis (ESDA), spatial regressions, and spatial optimization [@Rey2022]. 
+The subpackages are more lightweighted and can be installed and used independently to 
+accomplish specific spatial analysis tasks. 
+In this notebook, I will mainly work with `esda` and `libpysal`, two of the subpackages in the PySAL ecosystem,
+which are sufficient for the demonstration needs:
+`esda` includes a variety of classic and state-of-the-art 
+global and local spatial autocorrelation statistics; `libpysal` is the foundation of all the other
+subpackages in the PySAL ecosystem, which inclueds foundational algorithms and data structures 
+needed for spatial analysis, such as the construction of various spatial weights. 
+I will also draw on functionalities of `splot`, a light-weight
+visualization package in the PySAL ecosystem for generating statistical plots assisting
+the undertanding of the results of the spatial autocorrelation analysis [@Lumnitz2020]. 
+For the complete workflow, I will use `geopandas` for spatial data reading and wrangling [@joris_van_den_bossche_2024_12625316],  `libpysal` for constructing spatial weights, `esda` for the estimation and inference of global and local spatial autocorrelation, `splot`, `matplotlib`, and `contextily` for statistical and geospatial visualization, 
+and the built-in python module `random` to ensure replication and reproducibility of the inference results.
+
+
+<!--
+This section should provide details about the libraries and versions used to execute the notebook. It should also include any relevant discussion about the packages used. For example, if alternative packages that can do the same or provide the same functionalities, this should be the place to have that discussion - and potentially justify why you have chosen the packages, you have used in the notebook. What the reason for your preference is.
+-->
+In the code cell below, all the required python packages, classes, and functions are imported: 
+
+```{python}
+# loading packages for spatial data manipulation and analysis 
+import geopandas as gpd
+import libpysal
+import esda
+
+# loading visualization packages
+from splot.esda import lisa_cluster
+import matplotlib.pyplot as plt
+import contextily
+
+# python built-in module for generating pseudo-random numbers 
+# of permutation based inference
+import random
+
+# python package for scientific computing 
+import numpy as np
+
+# printing the name/version of all imported modules
+#%load_ext watermark
+#%watermark --iversions 
+
+```
+
+# Data  {#sec-data}
+<!--
+This section should describe the data used i.e. source, variables included, dates, location, geometry (e.g. points or lines), geography, etc.
+-->
+
+Both the geographies and attributes used in this analysis are sourced from the U.S. Census Bureau
+for the investigation of the spatial patterns of neighborhood housing affordability 
+in the City of Riverside, CA.
+onsistent with the literature, neighborhoods are represented by census tracts, and 
+tract polygons are sourced from the 2020 Census Bureau's TIGER/Line Shapefiles[^1].
+A total of 93 tract polygons are included as they either fall within or intersect 
+the city boundary. 
+
+The primary attribute of interest is the proportion of housholds that are burdened by housing costs.
+Specifically, households spending 30% or more of their gross incomes on housing costs, 
+which could include rent or mortgage payments, utilities, and related expenses, 
+are considered housing cost-burdened.
+This definition of housing affordability focuses on the ability of households to afford housing without experiencing financial strain and has been widely adopted by government agencies (e.g., the U.S. Department of Housing and Urban Development (HUD)) and affordable housing programs (e.g., HUD’s Housing Choice Voucher Program). 
+
+The dataset includes three continuous attributes related to housing cost burden, derived from the 2018–2022 5-year American Community Survey (ACS) estimates: 
+(1) `All30C`: the number of housing cost-burdened households.
+(2) `AllC`: the total number of households in the tract. 
+(3) `All30P`: the proportion of 
+housing cost-burdened households, calculated as All30C divided by AllC.
+
+These variables reflect all households, including renters and homeowners, with and without a mortgage.
+
+A Jupyter Notebook (Python) named "0_DataCollection" is included in the repository. It demonstrates how to use the Census API to query the source data (i.e., ACS and TIGER/Line Shapefiles) and perform the necessary transformations, calculations, and merges.
+
+The analysis begins by reading the spatial data file and projecting the geographic coordinate system to a planar coordinate system that uses linear measurements for the coordinates.
+
+```{python}
+# read the spatial data set (shapefile) as a GeoDataframe
+gdf = gpd.read_file("data/CostBurden_Riverside.shp")
+
+# set the projected coordinate system
+gdf = gdf.to_crs("epsg:2770")
+
+gdf.info()
+```
+
+
+# Basic conceptual intuition {#sec-intuition}
+<!--
+This section should explain the key idea of the method that the notebook will illustrate in a conceptual, high-level manner for a non-specialist audience. If you need to include equations, by all means do but our recommendation is to keep them simple.
+-->
+
+When our research question involves spatial entities, one of the first steps is often to visualize the attribute of interest on a map. 
+From the map, we could visually identify where the high and low values occur. 
+Most often than not, these patterns are not spatially random.
+In other words, areas with low values are more likely to be surrounded by other low values, and similarly for high values. 
+This type of spatial association is referred to as spatial dependence, 
+which invalidates the assumption of independence commonly used in classical statistical models. 
+Consequently, it is important to determine whether the observed spatial pattern is significant—that is, whether it deviates from what would be expected under spatial randomness.
+
+Spatial autocorrelation statistics were developed for this purpose. These statistics measure the correlation of an attribute across space by simultaneously evaluating locational and attribute similarity. Observations that are similar in attribute values and geographically close contribute positively to spatial autocorrelation statistics. Conversely, observations that are dissimilar in attribute values but geographically close contribute negatively.
+
+Global spatial autocorrelation (GSA) statistics are summary measures produced for the entire map,
+indicating the extent to which higher (or lower) values are overall geographically clustered. 
+They work by assessing locational and attribute similarities across all pairs of observations. 
+A generic form of a GSA statistic is given by Equation (\ref{e1}):
+
+\begin{equation}
+\label{e1}
+\Gamma = \sum_i \sum_j w_{ij} y_{ij} 
+\end{equation}
+
+where $\Gamma$ is a GSA statistic, $Y$ is a matrix of attribute similarity, and $W$ is a matrix representing locational 
+similarity. Different functions have been proposed to measure attribute similarity for 
+continuous values, leading to various GSA statistics, such as Moran's I 
+and Geary's C. The matrix $W$, known as the spatial weights matrix, encodes our perception about spatial relationships between observations.
+The weights in $W$ can be based on contiguity, distance, or accessibility.  
+Only the elements of $W$ that correspond to pairs of neighboring observations take non-zero values, making it a sparse matrix even for moderately large datasets. 
+For instance, with a queen-based contiguity weight for polygon geometries,
+two observations ($i \neq j$) are considered neighbors if they share a vertex or an edge and the $(i,j)$ entry in $W$ is nonzero.
+
+In addition to summarizing spatial autocorrelation across the entire map using a single statistic,
+it is often important to identify spatial clusters of high or low values,
+commonly referred to as spatial hotpots and coldspots. Additionally, spatial outliers, defined
+defined as low (high) values surrounded by high (low) values, may also be of interest.
+Local spatial autocorrelation (LSA) statistics, which are local decompositions of 
+GSA statistics, are designed for such purposes. 
+LSA statistics provide a measure of spatial autocorrelation for each observation by using information from neighboring observations
+This approach reveals the spatial nonstationarity of spatial autocorrelation, meaning that even in the absence of significant global spatial autocorrelation, local pockets of strong spatial autocorrelation may still exist. 
+A generic form of an LSA statistic is given by 
+Equation (\ref{e2}):
+
+\begin{equation}
+\label{e2}
+\Gamma_i = \sum_j w_{ij} y_{ij}
+\end{equation}
+
+where $\Gamma_i$ is the LSA statistic for observation $i$. Similar to the GSA statistics,
+different LSA statistics exist based on various definitions of attribute similarity.
+For instance, local Moran's I and local Geary's C are local decompositions of 
+Moran's I and Geary's C, respectively[@Anselin:1995fn].
+
+# Application {#sec-app}
+<!--
+This section should explain the implementation and details of the method using an empirical example, and here you have free flow to play and expand the notebook in the direction that you find relevant.
+-->
+
+In this section, I will demonstrate how to analyze the spatial distribution of 
+neighborhood housing affordability in the City of Riveride using gloabl and local Moran's Is, 
+the most widely used methods for assessing global and local spatial autocorrelation. 
+These statistics measures spatial autocorrelation by utilizing deviations 
+from the mean to define attribute similarity.
+Local Moran's I evaluates the coexistence of attribute and locational similarity 
+by multipling the focal unit’s deviation and 
+by spatial lag, which is the average of the deviations of its neighbors as 
+defined in the spatial weights matrix [@Anselin:1995fn].
+Global Moran's I is proportional to the summation of Local Moran's Is. 
+A positive estimate for global (local) Moran's I suggest positive gloabl (local) spatial autocorrelation, meaning that similar values (high or low) are geographically clustered.
+The larger the estimate, the stronger the spatial autocorrelation.
+Conversely, a large negative estimate indicates negative spatial autocorrelation, where dissimilar values (e.g., high values surrounded by low values) are more likely to be near each other.
+
+
+Since we are interested in the spatial patterns of a proportion variable,
+proper adjustment are necessary to address its intrinsic variance instability. Specifically, census tracts with a smaller number of households tend to have lower precision in their rate estimates, which could lead to the incorrect identification of spurious outliers.
+
+
+## Choropleth mapping of the spatial pattern
+
+The first step of the ESDA is often to visually inspect the spatial distribution. 
+As mentioned earlier, the raw rate, calculated by dividing the number of cost-burdened households by
+the total number of households, suffer from variance instability. One way to address this issue is by applying Empirical Bayes (EB) smoothing, where the EB rate is the weighted average between the raw rate
+and the citywide average, with larger weights given to the city average for tracts with a smaller number of households.
+The function `Empirical_Bayes` from `esda`'s `smoothing` can be used to easily estimate the EB rates.
+The estimated EB rate will be added to the dataset as a new column named `All30EBP`.
+
+```{python}
+gdf_temp = gdf[gdf.AllC>0]
+gdf_temp= gdf_temp.assign(
+  All30EBP=esda.smoothing.Empirical_Bayes(
+    gdf_temp.All30C.values, 
+    gdf_temp.AllC.values).r)
+
+gdf = gdf.set_index("GEOID").merge(
+  gdf_temp[["All30EBP","GEOID"]].set_index("GEOID"),
+  how="outer", 
+  right_index=True, 
+  left_index=True)
+```
+
+Next, we visualize the raw rate map and the EB rate map side-by-side for comparison.
+We use call the `plot()` method from `GeoDataFrame` to produce a choropleth map with quintile 
+classification, providing a quick preview of the spatial distribution of the housing cost-burden rate across neighborhoods in the City of Riverside. Additionally, a basemap
+could be overlaid on the choropleth map to give geographic context to the study area using the `contextily` package.
+
+```{python}
+f, axes = plt.subplots(1,2, figsize=(20, 10))
+gdf.plot(
+  "All30P", 
+  cmap="YlGn", 
+  k=5, 
+  scheme='quantiles', 
+  edgecolor="white",
+  linewidth=1,
+  alpha=0.75, 
+  legend=True, 
+  ax=axes[0], 
+  missing_kwds={
+    "color": "lightgrey",
+    "label": "No population"
+    }
+  )
+contextily.add_basemap(
+  axes[0],
+  crs=gdf.crs, 
+  source=contextily.providers.Esri.WorldTopoMap
+  )
+axes[0].set_title("Raw rate map")
+axes[0].set_axis_off();
+
+gdf.plot(
+  "All30EBP", 
+  cmap="YlGn", 
+  k=5, 
+  scheme='quantiles', 
+  edgecolor="white",
+  linewidth=1,
+  alpha=0.75, 
+  legend=True, 
+  ax=axes[1], 
+  missing_kwds={
+    "color": "lightgrey",
+    "label": "No population"
+    }
+  )
+contextily.add_basemap(
+  axes[1],
+  crs=gdf.crs, 
+  source=contextily.providers.Esri.WorldTopoMap
+  )
+axes[1].set_title("EB rate map")
+axes[1].set_axis_off();
+```
+
+The general spatial patterns are similar across the raw and EB rate maps despite small differences
+in the range of rates. Visually, neighborhoods with similar values seem to be geographically close.
+For instance, neighborhoods that were more prevalent with housing cost-burdened households
+are concentrated in the northeastern and western parts of the city, as well as 
+the southeastern neighborhoods 
+that overlap significantly with the City of Moreno Valley. 
+In contrast, lower rates concentrated in southern Riverside, which are known for newer 
+developments and suburban-style housing.
+However, our visual preception could be deceiving, which is particularly relevant as the polygons
+vary in size. We therefore adopt spatial autocorrelation methods to formally test aganist
+spatial randomness and identify local hot/cold spots and outliers. 
+<!-- It is obvious from the map legends that the range of the rate variable is smaller with EB smoothing.
+The largest value of raw housing cost-burden rate, 1, for the tract in northestern Riverside where
+the University of California Riverside was located was
+adjusted to be 0.59 due to the small population at risk (total number of renter or owner households is 21).
+The smoothing techique succesfully dealt with spurious outliers in the geovisualization. -->
+
+
+
+## Spatial autocorrelation analysis
+ 
+In `esda`, the estimation and inference of the spatial autocorrelation statistics, global and local Moran's Is, 
+are implemented as the respective 
+Python `classes`: `Moran` and `Moran_Local`. For each, 
+locational similarity (i.e., spatial weights) must be defined and 
+calculated prior to instantiation of these classes whereas 
+attribute similarity is assessed internally, making attribute data a required parameter. 
+As we are analyzing proportion variable which could suffer from variance instability,
+the Empirical Bayes (EB) standardization has been proposed to correct Moran’s I statistics 
+as a solution [@SIM:SIM179]. The `esda` classes `Moran_Rate` and `Moran_Rate_Local`
+implemented this adjustment. In contrast to `Moran` and `Moran_Local` where the 
+attribute of interest should be provided, these two classes require values for
+the number of the events (i.e., housing cost-burdened households) 
+and the population at risk (i.e., total households).
+
+### Locational similarity and spatial weights
+
+The first step of spatial autocorrelation analysis is to construct 
+spatial weights for representing locational similarity.
+In this application, a queen contiguity spatial weight matrix 
+will be constructed using `esda`'s newest module, `graph`, a modern 
+implementation of spatial weights [@pysalGraphMigration].
+
+```{python}
+#tracts without any population are removed before the analysis
+gdf_r = gdf[gdf.AllC>0] 
+
+# construct queen-based spatial weights 
+g_queen = libpysal.graph.Graph.build_contiguity(gdf_r, rook=False)
+```
+
+We can call its adjacency attribute to inspect the neighbor information for each tract:
+
+```{python}
+g_queen.adjacency 
+```
+
+The returned value is a `pandas` multi-index Series. For each focal tract, 
+the second index lists tracts that share a vertex or edge, which are its 
+queen-contiguity neighbors, and the last column (value of the Series) 
+is the corresponding weight for each neighbor. In the queen-contiguity spatial weight, 
+every weight has the value of 1. 
+
+Futher, we need to row-standardize the spatial weight matrix 
+for the estimation of the global and local Moran's I statistics.
+This can be accomplished by calling the `transform` method and 
+passing a `string` value of `"r"` on the `graph` object. After the transformation, 
+for each focal tract, the weights sum up to 1.
+
+```{python}
+gr = g_queen.transform("r")
+gr.adjacency
+```
+
+### Estimation and inference
+
+The discussion so far has been focused on the estimation of spatial autocorrelation statistics. 
+While a large positive Moran’s I statistic suggests a tendency for high (low) values to 
+cluster near other high (low) values, formal inference is required to reject 
+spatial randomness—the null hypothesis of GSAs.
+
+Both analytical and permutation-based approaches have been proposed for inference regarding Moran’s I. 
+he analytical approach, which assumes independent and normally distributed random variates under the null hypothesis, is straightforward to implement. However, it relies on assumptions of normality, spatial stationarity, and a sufficiently large sample size, all of which are easily violated in practice.
+
+In contrast, the permutation-based approach is more robust, 
+as it does not require these assumptions. Instead, 
+it constructs a reference distribution for Moran’s I by repeatedly
+permuting the observed values across locations. 
+From this reference distribution, a pseudo p-value is calculated 
+to assess the significance of the observed Moran’s I. 
+
+For local Moran's I, conditional random permutation is performed, 
+where the value of the focal tract remains fixed while the values of 
+other observations are spatially permuted. 
+This process generates a unique reference distribution for each tract, which is then used to calculate its corresponding pseudo p-value. The inference of local Moran's Is would potentially
+suffer from multiple testing issues as we are conducting 
+a lot of tests (i.e., number of observations) simultaneously. 
+By random chance, 5% of tests would be rejected at the 5% significance level. While several methods for addressing multiple testing have been proposed, the False Discovery Rate (FDR) method
+is employed in this demonstration [@Benjamini2001; @Castro:2006tz]. 
+
+#### Global Spatial autocorrelation
+
+The `esda` classes are designed in such manner that estimation and inference are simutaneously conducted.
+For the permutation-based inference, we need to set the desired number of (conditional) random spatial permutations. 
+The number of permutations to be 99999 to be consistent across global and local inference 
+as the local inference requires the number of permutations to be
+sufficiently large to yield a pseudo p-value that is small enough
+once the multiple testing is adjusted for with the FDR method.
+
+```{python}
+# initialize the random number generator with a given seed to make sure 
+# the permutation based inference can be replicated on different computers 
+# and at different times
+random.seed(5)
+
+# create an instance of the Moran class from esda
+moran = esda.Moran_Rate(
+  gdf_r.All30C.values, 
+  gdf_r.AllC.values,  
+  gr, 
+  permutations=99999)
+
+print("Moran's I estimate:", moran.I)
+print("Peudo p-value:", moran.p_sim)
+```
+
+
+The estimate of Moran's I statitic is a positive 0.34. 
+The peudo p-value under 99,999 permutations is 1e-05, meaning that none of the permuted spatial pattern yielded a statistic larger than the actual observed data.
+These results indicate a strong deviation from spatial randomness in neighborhood housing affordability. 
+In other words, neighborhoods with higher (or lower) concentrations of cost-burdened households were more likely to be adjacent to similar neighborhoods.
+
+
+#### Local spatial autocorrelation
+
+Next, we use local Moran's I to decompose the global statistic
+and to detect potential hot/cold spots or spatial outliers.
+The instantiation of the local Moran class is similar to that 
+for the global class:
+
+```{python}
+random.seed(5)
+
+# create an instance of the Moran_Local class from esda
+moran_loc = esda.moran.Moran_Local_Rate(
+  gdf_r.All30C.values, 
+  gdf_r.AllC.values, 
+  g_queen, 
+  transformation = "r",
+  permutations=99999
+  )
+moran_loc.Is.round(2)
+```
+
+As shown above, for each neighborhood, a local Moran's I 
+statistic was estimated and these values vary - some are larger than
+the global Moran's I estimate of 0.34 and others are smaller. 
+A choropleth map of the local statistics would be useful 
+for understanding which neighborhoods have larger and smaller 
+local spatial autocorrelation:
+
+```{python}
+# add local Moran's I estimates as a new column 
+# named "lisa" to the GeoDataFrame
+gdf_r = gdf_r.assign(lisa=moran_loc.Is)
+
+f, ax = plt.subplots(1,1, figsize=(10, 7))
+gdf_r.plot(
+  "lisa", 
+  cmap="coolwarm", 
+  k=5, 
+  scheme='quantiles', 
+  edgecolor="white",
+  linewidth=1,
+  alpha=0.75, 
+  legend=True, 
+  ax=ax
+  )
+
+contextily.add_basemap(
+  ax,
+  crs=gdf_r.crs, 
+  source=contextily.providers.Esri.WorldTopoMap
+  );
+ax.set_title("Local Moran's I Estimates");
+ax.set_axis_off();
+```
+
+As shown in the map, large positive values clustered in the northeastern and central 
+city - an indication of potential hot or cold spots depending 
+on the housing affordability levels of the focal tract.
+Additionally, despite the positive estimate obtained for
+the global measure, some neighborhoods exhibited 
+negative local spatial autocorrelation, an indication
+of low (high) levels of housing affordability being surrounded by 
+high (low) levels of housing affordability, or spatial outliers.
+
+In order to determine whether our visual perception is 
+statistically sound, we resort to the peudo p-values obtained 
+for each tract with conditional spatial permutation.
+As described before, we adjust for multiple local testing
+with FDR. The adjusted threshold for the overall 5% significance
+level could be calculated using `esda`'s function `fdr`:
+
+```{python}
+p_adj = esda.fdr(moran_loc.p_sim, 0.05)
+print(p_adj)
+```
+
+The adjusted threshold of 0.005 is much smaller than 0.05.
+Next, we used this threshold to conduct inference about 
+the local Moran's I statistics,
+which could be accomplished by calling the method 
+`get_cluster_labels()` from
+the `Moran_Local_Rate` instance and passing the adjusted 
+threshold. This method could generate one of five unique 
+values for each neighborhoods: Insignificant, High-High,
+Low-Low, Low-High, and High-Low. 
+Apart from "Insignificant", the last four values indicate 
+statistically significant local statistics with the family
+significance level of 5%. 
+Additionally, for these four values, the value on the left of 
+`-` refers to the attribute level of the focal unit, whether it 
+is larger (i.e., High) or smaller (i.e., Low) than the global average;
+similarly, the value on the right of `-` refers to the attribute level
+of the spatial lag of the focal unit - in other words,
+whether the average of the neighboring units is larger 
+(i.e., High) or smaller (i.e., Low) than the global average 
+of all spatial lags.
+Following these definitions, High-High and Low-Low are indicators of 
+hot and cold spots where focal units are 
+very similar to their neighbors. and Low-High, and High-Low are 
+indicators of spatial outliers where focal units are 
+very different from their neighbors.
+
+```{python}
+gdf_r = gdf_r.assign(
+  p_sim=moran_loc.p_sim, 
+  cluster=moran_loc.get_cluster_labels(crit_value=p_adj))
+
+# query statistically significant local statistics
+gdf_r[gdf_r.cluster!="Insignificant"].drop(columns=["geometry"])
+```
+
+We obtained 9 tracts that are identified to be either spatial 
+hot/cold spots or outliers. Only 1 out of these 9 tracts
+is identified to be the center of a "High-Low" cluster 
+with a negative local statistic. 5 tracts are centers of "High-High" 
+clusters and 3 are centers of "Low-Low" clusters. 
+We can further visualize them on a map:
+
+```{python}
+f, ax = plt.subplots(1,1, figsize=(10, 7))
+lisa_cluster(moran_loc, gdf_r, p=p_adj, ax=ax)
+ax.set_title("Spatial hot/cold spots or outliers");
+```
+
+On the map, tracts that are identified to be "High-High" (HH)
+are highlighted in red and they form one cluster in the northestern
+part of the city. On the other hand, two "Low-Low" (LL) clusters
+are formed as highlighted in blue and they are located pretty closely.
+The sole tract that is the center of a "High-Low" (HL) cluster 
+is located on the intersection of two cities, Riverside and Moreno Valley.
+On the other hand, none of the spatial "anomalies" are located in 
+the west of the city which was considered to host neighborhoods of high levels 
+of housing-cost burdend households
+upon visual inspection of the housing affordability map earlier.
+
+<!-- ```{python}
+plot_local_autocorrelation(moran_loc, gdf, "All30P", p=p_adj)
+plt.show()
+``` -->
+
+
+
+# Conclusion {#sec-conclusion}
+<!--
+This section should provide a short closing note for the notebook. It could include ideas for potential application of the technique, or a description of current and future developments of the technique pointing to key references if users want to follow up.
+-->
+
+Spatial autocorrelation is a fundamental concept in quantitative human geography.
+This notebook provides a comprehensive, open-source Python workflow using the `esda` package to measure, infer, and visualize global and local Moran’s I statistics for a proportion variable. These tools are essential for understanding spatial patterns and relationships in geographic data.
+
+While Moran’s I is one of the most widely used statistics for spatial autocorrelation, alternative measures like Geary’s C and Getis-Ord G are also commonly applied for continuous variables, each with a unique definition of attribute similarity.
+For categorical data, join count statistics can be used. Readers interested in exploring these measures further are encouraged to refer to foundational texts such as  [@OSullivan:2010] and recent developments by [@rey2023geographic].
+These additional methods are also available in the `esda` package [@githubGitHubPysalesda].
+ 
+Substantial advancements in spatial autocorrelation analysis have been made in recent decades.
+For example, the concept has been extended to multivariate contexts, allowing the analysis of spatial relationships across two or more variables. 
+[@Anselin2020] introduced multivariate Geary’s C statistics, which assess the extent to which neighbors in a multi-attribute space are also neighbors in geographic space. Additionally,
+[@Wolf2024] proposed conditional local Moran statistics, which account for confounding factors to measure the local spatial structure of an outcome variable. 
+Beyond single-variable and multivariate analyses, spatial autocorrelation has been extended to address new spatial entities, such as human mobility vectors [@liu2015measuring].
+Researchers have also begun incorporating attribute and spatial data uncertainties into spatial autocorrelation analysis (Jung et al., 2019; Arbia et al., 2016), an area that remains ripe for further exploration.[@jung:2019spatial; @Arbia2016], an area that remains ripe for further exploration.
+
+This notebook serves as a starting point for applying spatial autocorrelation techniques, with potential applications in fields such as urban planning, public health, and environmental studies. Future developments in the field are likely to further refine these methods, enhance computational efficiency, and broaden their applicability to complex spatial phenomena.
+
+[^1]: Census 2020 TIGER/Line Shapefiles: https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.2020.html
