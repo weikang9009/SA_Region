@@ -143,7 +143,7 @@ housing cost-burdened households, calculated as All30C divided by AllC.
 
 These variables reflect all households, including renters and homeowners, with and without a mortgage.
 
-A Jupyter Notebook (Python) named "0_DataCollection" is included in the repository. It demonstrates how to use the Census API to query the source data (i.e., ACS and TIGER/Line Shapefiles) and perform the necessary transformations, calculations, and merges.
+A Jupyter Notebook (Python) named "DataCollection" is included in the repository. It demonstrates how to use the Census API to query the source data (i.e., ACS and TIGER/Line Shapefiles) and perform the necessary transformations, calculations, and merges.
 
 The analysis begins by reading the spatial data file and projecting the geographic coordinate system to a planar coordinate system that uses linear measurements for the coordinates.
 
